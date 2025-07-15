@@ -25,7 +25,7 @@ _e() {
     if command -v gum &>/dev/null; then
       gum style --foreground="160" --border=rounded --border-foreground="160" --bold "[-] $msg"
     else
-      echo -e "\n\e[0;33m\033[1m $msg \033[0m\e[0m"
+      echo -e "\n\e[0;31m\033[1m $msg \033[0m\e[0m"
     fi
   else
     gum style --foreground="120" --border=rounded --border-foreground="120" --bold "[+] $msg"
@@ -49,7 +49,7 @@ else
   _e "Installing necessary packages for the environment..." info
   if
     ! sudo apt install -y \
-      git curl flatpak net-tools zsh figlet lolcat kitty rofi feh xclip ranger dunst alacritty \
+      git curl flatpak net-tools zsh figlet lolcat kitty rofi feh xclip ranger dunst \
       scrot scrub cmatrix htop python3-pip tty-clock fzf bat flameshot shellcheck \
       distrobox vim wmname
   then
