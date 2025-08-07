@@ -3,16 +3,15 @@
 
 import re, sys, subprocess
 
-# python3 wichSystem.py 10.10.10.188 
+# wichSystem.py 10.10.10.188
 
 if len(sys.argv) != 2:
     print("\n[!] Uso: python3 " + sys.argv[0] + " <direccion-ip>\n")
     sys.exit(1)
 
 def get_ttl(ip_address):
-
     proc = subprocess.Popen(["/usr/bin/ping -c 1 %s" % ip_address, ""], stdout=subprocess.PIPE, shell=True)
-    (out,err) = proc.communicate()
+    (out, _) = proc.communicate()
 
     out = out.split()
     out = out[12].decode('utf-8')
@@ -22,7 +21,6 @@ def get_ttl(ip_address):
     return ttl_value
 
 def get_os(ttl):
-
     ttl = int(ttl)
 
     if ttl >= 0 and ttl <= 64:
@@ -33,7 +31,6 @@ def get_os(ttl):
         return "Not Found"
 
 if __name__ == '__main__':
-
     ip_address = sys.argv[1]
 
     ttl = get_ttl(ip_address)

@@ -4,7 +4,7 @@ pgrep -x sxhkd >/dev/null || sxhkd &
 
 wmname LG3D &
 # only to use in VMWARE instances
-vmware-user-suid-wrapper &
+# vmware-user-suid-wrapper &
 
 bspc monitor -d I II III IV V VI
 
@@ -25,6 +25,6 @@ bspc rule -a Firefox desktop='^2'
 bspc rule -a mplayer2 state=floating
 bspc rule -a Screenkey manage=off
 
-feh --bg-fill ~/Wallpapers/archkali.png &
+find ~/Wallpapers/ -type f | shuf -n 1 | xargs feh --bg-fill &
 ~/.config/polybar/./launch.sh --cuts &
 picom --config ~/.config/picom/picom.conf &

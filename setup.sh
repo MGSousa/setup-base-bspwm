@@ -1,9 +1,8 @@
 #!/bin/bash
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016,SC1091
 
 set -o pipefail
 
-# Global variables
 dir=$(pwd)
 fdir="$HOME/.local/share/fonts"
 user=$(whoami)
@@ -38,31 +37,36 @@ if [ "$user" = "root" ]; then
 else
   sudo apt update
 
-  # install brew for additional dependencies
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' | tee -a "$HOME/.bashrc" "$HOME/.zshrc"
+  if ! command -v brew &>/dev/null; then
+    # install brew for additional dependencies
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' | tee -a "$HOME/.bashrc" "$HOME/.zshrc"
+  fi
 
-  brew install fnm gum
-  echo 'eval "$(fnm env --use-on-cd --shell bash)"' >>"$HOME/.bashrc"
-  echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >>"$HOME/.zshrc"
+  if ! command -v fnm gum btop &>/dev/null; then
+    brew install fnm gum btop
+    echo 'eval "$(fnm env --use-on-cd --shell bash)"' >>"$HOME/.bashrc"
+    echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >>"$HOME/.zshrc"
+  fi
 
   _e "Installing necessary packages for the environment..." info
   if
     ! sudo apt install -y \
       git curl flatpak net-tools zsh figlet lolcat kitty rofi feh xclip ranger dunst \
       scrot scrub cmatrix htop python3-pip tty-clock fzf bat flameshot shellcheck \
-      distrobox vim wmname
+      distrobox vim wmname zsh-syntax-highlighting zsh-autosuggestions
   then
     _e "Failed to install some packages!" error
     exit 1
-  else
-    _e "Done"
-    sleep 1.5
   fi
+
+  _e "Setup Rust" info
+  curl https://sh.rustup.rs -sSf | bash
+  . "$HOME/.cargo/env"
 
   _e "Setup neovim" info
   set -e
-  curl -sSLO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
+  curl -sLO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
   sudo mkdir -p /opt/nvim && sudo install -D nvim-linux-x86_64.appimage /opt/nvim/bin/nvim
   echo 'export PATH=$PATH:/opt/nvim/bin' >>"$HOME/.zshrc"
   set +e
@@ -70,26 +74,28 @@ else
   _e "Starting installation of necessary dependencies for the environment..." info
   sleep 0.5
 
-  _e "Installing necessary dependencies for bspwm..." info
+  _e "Installing necessary dependencies for rust and bspwm..." info
   sleep 2
   if
     ! sudo apt install -y \
-      build-essential \
+      build-essential libssl-dev \
       libxcb-util0-dev libxcb-ewmh-dev libxcb-randr0-dev libxcb-icccm4-dev libxcb-keysyms1-dev libxcb-xinerama0-dev \
       libasound2-dev libxcb-xtest0-dev libxcb-shape0-dev libuv1-dev
   then
     _e "Failed to install some dependencies for bspwm!" error
     exit 1
-  else
-    _e "Done"
-    sleep 1.5
   fi
 
-  _e "Setup Node" info
-  # shellcheck disable=SC2046
+  _e "Install cargo-update, ripgrep, alacritty" info
+  if ! cargo install cargo-update ripgrep alacritty; then
+    _e "Failed to install some rust dependencies, check errors above" error
+    exit 1
+  fi
+
+  _e "Setup NodeJS" info
+  mapfile versions < <(fnm ls-remote | tail -50)
   NODE_VERSION=$(
-    gum choose --cursor.foreground="112" --height=20 --header="Which Node Version to install?" \
-      $(fnm ls-remote | tail -50)
+    gum choose --cursor.foreground="112" --height=20 --header="Which Node Version to install?" "${versions[@]}"
   )
   if [ -n "${NODE_VERSION}" ]; then
     fnm i "${NODE_VERSION}" && fnm default "${NODE_VERSION}"
@@ -106,9 +112,6 @@ else
   then
     _e "Failed to install some dependencies for polybar!" error
     exit 1
-  else
-    _e "Done"
-    sleep 1.5
   fi
 
   _e "Installing necessary dependencies for picom..." info
@@ -123,9 +126,6 @@ else
   then
     _e "Failed to install some dependencies for picom!" error
     exit 1
-  else
-    _e "Done"
-    sleep 1.5
   fi
 
   _e "Installing bspwm..." info
@@ -140,9 +140,6 @@ else
       _e "Failed to install bspwm!" error
       exit 1
     fi
-
-    _e "Done"
-    sleep 1.5
   )
 
   _e "Installing sxhkd..." info
@@ -155,9 +152,6 @@ else
     if ! sudo make install; then
       _e "Failed to install sxhkd!" error
       exit 1
-    else
-      _e "Done"
-      sleep 1.5
     fi
   )
 
@@ -174,9 +168,6 @@ else
     if ! sudo make install; then
       _e "Failed to install polybar!" error
       exit 1
-    else
-      _e "Done"
-      sleep 1.5
     fi
   )
 
@@ -192,111 +183,56 @@ else
     if ! sudo ninja -C build install; then
       _e "Failed to install picom!" error
       exit 1
-    else
-      _e "Done"
-      sleep 1.5
     fi
   )
 
-  _e "Installing Oh My Zsh and Powerlevel10k for user $user..." info
-  sleep 2
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-  if ! git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"; then
-    _e "Failed to install Oh My Zsh and Powerlevel10k for user $user!" error
-    exit 1
-  else
-    _e "Done"
-    sleep 1.5
+  if [ ! -d "${HOME}/.oh-my-zsh" ]; then
+    _e "Installing Oh My Zsh and Powerlevel10k for user $user..." info
+    sleep 2
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+
+    if ! git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${HOME}/.oh-my-zsh/custom}/themes/powerlevel10k"; then
+      _e "Failed to install Oh My Zsh and Powerlevel10k for user $user!" error
+      exit 1
+    fi
   fi
 
-  _e "Installing Oh My Zsh and Powerlevel10k for user root..." info
+  _e "Configuring wallpaper and fonts..." info
   sleep 2
-  sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-  if ! sudo git clone --depth=1 https://github.com/romkatv/powerlevel10k.git /root/.oh-my-zsh/custom/themes/powerlevel10k; then
-    _e "Failed to install Oh My Zsh and Powerlevel10k for user root!" error
-    exit 1
-  else
-    _e "Done"
-    sleep 1.5
-  fi
-
-  _e "Starting configuration of fonts, wallpaper, configuration files, .zshrc, .p10k.zsh, and scripts..." info
-  sleep 0.5
-
-  _e "Configuring fonts..." info
-  sleep 2
-  if [[ -d "$fdir" ]]; then
-    cp -rv $dir/fonts/* $fdir
-  else
-    mkdir -p $fdir
-    cp -rv $dir/fonts/* $fdir
-  fi
-  _e "Done"
-  sleep 1.5
-
-  _e "Configuring wallpaper..." info
-  sleep 2
-  if [[ -d "$HOME/Wallpapers" ]]; then
-    cp -rv "$dir/wallpapers/*" ~/Wallpapers
-  else
-    mkdir ~/Wallpapers
-    cp -rv "$dir/wallpapers/*" ~/Wallpapers
-  fi
-  _e "Done"
-  sleep 1.5
+  mkdir -p ~/Wallpapers
+  cp -rv "$dir/fonts/"* "$fdir"
+  cp -rv "$dir/wallpapers/"* ~/Wallpapers
 
   _e "Set configuration files..." info
   sleep 2
-  cp -rv "$dir/configs/*" ~/.config/
-  _e "Done"
-  sleep 1.5
-
-  _e "Configuring the .zshrc and .p10k.zsh files..." info
-  sleep 2
+  cp -rv "$dir/configs/"* ~/.config/
   cp -v "$dir/.zshrc" ~/.zshrc
-  sudo ln -sfv ~/.zshrc /root/.zshrc
   cp -v "$dir/.p10k.zsh" ~/.p10k.zsh
-  sudo ln -sfv ~/.p10k.zsh /root/.p10k.zsh
-  _e "Done"
-  sleep 1.5
 
   _e "Configuring scripts..." info
   sleep 2
   sudo cp -v "$dir/scripts/whichSystem.py" /usr/local/bin/
-  cp -rv "$dir/scripts/*.sh" ~/.config/polybar/shapes/scripts/
+  cp -rv "$dir/scripts/"*.sh ~/.config/polybar/shapes/scripts/
   touch ~/.config/polybar/shapes/scripts/target
-  _e "Done"
-  sleep 1.5
 
   _e "Configuring necessary permissions and symbolic links..." info
   sleep 2
   chmod -R +x ~/.config/bspwm/
   chmod +x ~/.config/polybar/launch.sh ~/.config/polybar/shapes/scripts/*
   sudo chmod +x /usr/local/bin/whichSystem.py /usr/local/share/zsh/site-functions/_bspc
-  sudo chown root:root /usr/local/share/zsh/site-functions/_bspc
-  sudo mkdir -p /root/.config/polybar/shapes/scripts/
-  sudo touch /root/.config/polybar/shapes/scripts/target
-  sudo ln -sfv ~/.config/polybar/shapes/scripts/target /root/.config/polybar/shapes/scripts/target
-
-  _e "Done"
-  sleep 1.5
 
   _e "Running Post installation scripts" info
   "$dir/scripts/determine_interface.sh"
   sleep 2
 
-  _e "Environment configured" info
-  sleep 1.5
-
   REPLY=$(
     gum confirm \
       --selected.background="160" --prompt.foreground="#7571F9" --show-output \
-      "It is necessary to restart the system. Do you want to restart the system now?"
+      "Environment configured! It is necessary to restart the system. Do you want to restart the system now?"
   )
   if [ "$REPLY" = "Yes" ]; then
     _e "Restarting the system..."
-    sleep 1
-    sudo reboot
+    sudo shutdown -r now
   else
     _e "Restart cancelled, please restart it later"
   fi
