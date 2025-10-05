@@ -41,12 +41,16 @@ else
     # install brew for additional dependencies
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' | tee -a "$HOME/.bashrc" "$HOME/.zshrc"
+
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
   fi
 
   if ! command -v fnm gum btop &>/dev/null; then
     brew install fnm gum btop
     echo 'eval "$(fnm env --use-on-cd --shell bash)"' >>"$HOME/.bashrc"
     echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >>"$HOME/.zshrc"
+
+    eval "$(fnm env --use-on-cd --shell bash)"
   fi
 
   _e "Installing necessary packages for the environment..." info
@@ -78,7 +82,7 @@ else
   sleep 2
   if
     ! sudo apt install -y \
-      build-essential libssl-dev \
+      build-essential libssl-dev pkg-config libfontconfig-dev \
       libxcb-util0-dev libxcb-ewmh-dev libxcb-randr0-dev libxcb-icccm4-dev libxcb-keysyms1-dev libxcb-xinerama0-dev \
       libasound2-dev libxcb-xtest0-dev libxcb-shape0-dev libuv1-dev
   then
